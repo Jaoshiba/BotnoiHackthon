@@ -48,34 +48,32 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return node
 }
 
-func generateGrid(rows, cols int) ([][]int, []Position) {
-	grid := make([][]int, rows)
-	available := []Position{}
-	for i := 0; i < rows; i++ {
-		grid[i] = make([]int, cols)
-		for j := 0; j < cols; j++ {
-			if i%5 == 0 || j%5 == 0 {
-				grid[i][j] = 0 // walkway
-			} else {
-				grid[i][j] = -1 // potential booth
-				available = append(available, Position{i, j})
-			}
-		}
-	}
-	return grid, available
+// ข้อมูลตำแหน่งบูธจริง
+var predefinedBooths = map[string]Position{
+	"Booth-001": {X: 2, Y: 3},
+	"Booth-002": {X: 4, Y: 5},
+	"Booth-003": {X: 7, Y: 8},
+	"Booth-004": {X: 10, Y: 10},
+	"Booth-005": {X: 15, Y: 12},
+	"Booth-006": {X: 18, Y: 25},
+	// เพิ่มบูธอื่น ๆ ตามข้อมูลจริง
 }
 
-func placeBooths(grid [][]int, available []Position, percent float64) {
-	numBooths := int(float64(len(available)) * percent)
-	rand.Shuffle(len(available), func(i, j int) {
-		available[i], available[j] = available[j], available[i]
-	})
-	for i := 0; i < numBooths; i++ {
-		p := available[i]
-		grid[p.X][p.Y] = 1 // booth
+func generateGrid(rows, cols int) [][]int {
+	grid := make([][]int, rows)
+	for i := 0; i < rows; i++ {
+		grid[i] = make([]int, cols)
 	}
-	for _, p := range available[numBooths:] {
-		grid[p.X][p.Y] = 0 // walkable
+	return grid
+}
+
+func placeBooths(grid [][]int, predefinedBooths map[string]Position) {
+	for boothName, boothPos := range predefinedBooths {
+		if boothPos.X >= 0 && boothPos.Y >= 0 && boothPos.X < len(grid) && boothPos.Y < len(grid[0]) {
+			grid[boothPos.X][boothPos.Y] = 1 // booth
+			// คุณสามารถเก็บชื่อบูธในที่นี้ได้ถ้าต้องการ
+			fmt.Printf("Booth: %s at Position: (%d, %d)\n", boothName, boothPos.X, boothPos.Y)
+		}
 	}
 }
 
@@ -179,20 +177,29 @@ func main() {
 
 	router.GET("/path", func(c *gin.Context) {
 		rows, cols := 20, 30
-		grid, available := generateGrid(rows, cols)
-		placeBooths(grid, available, 0.7)
-		start := getFreePosition(grid)
-		goal := getFreePosition(grid)
+		grid := generateGrid(rows, cols)
+
+		// วางตำแหน่งบูธจากข้อมูลจริง
+		placeBooths(grid, predefinedBooths)
+
+		// กำหนดจุดเริ่มต้นและจุดปลายทาง
+		start := getFreePosition(grid) // หรือใช้ข้อมูลที่ผู้ใช้กำหนด
+		goal := getFreePosition(grid)  // หรือใช้ข้อมูลที่ผู้ใช้กำหนด
+
+		// หาทาง
 		path := findPath(grid, start, goal)
 
+		// สร้างภาพแผนที่
 		filename := fmt.Sprintf("map_%d.png", time.Now().UnixNano())
 		drawGridImage(grid, path, start, goal, filename)
 
+		// ส่งข้อมูลผลลัพธ์กลับ
 		c.JSON(http.StatusOK, gin.H{
 			"start": start,
 			"goal":  goal,
 			"path":  path,
 			"map":   "/static/" + filename,
+			"booths": predefinedBooths, // ส่งข้อมูลบูธทั้งหมดกลับด้วย
 		})
 	})
 
